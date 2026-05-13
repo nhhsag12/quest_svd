@@ -1,25 +1,57 @@
 # QUEST-SVD
 
-Codebase for MMDocIR page-level retrieval experiments with:
-- Traditional MaxSim baseline
-- QUEST-SVD (SVD importance + cluster pool)
-- Hierarchical Ward token pooling
-- Attention-score token pruning
-- Spherical KMeans token pooling
-- Random token pruning baseline
+Research codebase for document retrieval/compression experiments on MMDocIR and ViDoRe.
 
-The project is refactored from the original notebook workflow into modular Python code for reproducibility and cleaner research artifacts.
+This repository turns notebook workflows into modular scripts for reproducible experiments, ablation studies, and standalone baseline runs.
 
-## Project Structure
+## What Is Included
+
+- Models: ColSmol and ColQwen query encoders
+- Datasets: MMDocIR Page, MMDocIR Layout, ViDoRe loader support
+- Core methods:
+	- traditional MaxSim
+	- QUEST-SVD (SVD importance + cluster pooling)
+	- hierarchical Ward pooling
+	- attention pruning
+	- spherical k-means pooling
+	- random pruning
+	- document pooling baselines (pool1d, pool2d)
+- Metrics:
+	- set-based retrieval metrics (page-level)
+	- layout area-aware metrics (layout-level)
+
+## Repository Layout
 
 ```
 quest_svd/
 	configs/
 		mmdocir_page.example.env
 	src/
+		datasets/
+			common.py
+			mmdocir_page.py
+			mmdocir_layout.py
+			vidore.py
 		experiments/
-			notebook-methodology-colsmol-mmdocir-page-ver2.ipynb
 			run_mmdocir_page.py
+			run_mmdocir_layout.py
+			notebook-*.ipynb
+		methodology/
+			config.py
+			data_loading.py
+			retrieval.py
+			methods.py
+			reporting.py
+			efficiency.py
+			cluster_pooling/
+			svd/
+		metrics/
+			common.py
+			layout.py
+			store.py
+		model/
+			colsmol.py
+			colqwen.py
 		other method/
 			common.py
 			traditional_method.py
@@ -27,28 +59,16 @@ quest_svd/
 			attention_pruning_method.py
 			spherical_kmeans_method.py
 			random_pruning_method.py
-		methodology/
-			config.py
-			data_loading.py
-			retrieval.py
-			metrics.py
-			efficiency.py
-			reporting.py
-			methods.py
-			cluster_pooling/
-				spherical_kmeans.py
-				ward.py
-			svd/
-				attention_importance.py
-		model/
-			colsmol.py
+			pooling_method.py
+			doc_pooling.py
 	pyproject.toml
 	requirements.txt
 ```
 
-## Environment
+## Requirements
 
-Python 3.10+ is recommended.
+- Python 3.10+
+- CUDA-capable GPU recommended for full runs
 
 Install dependencies:
 
@@ -56,67 +76,120 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Or editable package install:
+Optional editable install:
 
 ```powershell
 pip install -e .
 ```
 
-## Run Experiments
+## Quick Start
 
-From repository root:
+Set import path from repository root:
 
 ```powershell
 $env:PYTHONPATH="src"
-python src/experiments/run_mmdocir_page.py `
-	--page-pkl-dir "<PAGE_PKL_DIR>" `
-	--colsmol-base "<COLSMOL_BASE>" `
-	--colsmol-lora "<COLSMOL_LORA>" `
-	--annotations-path "<ANNOTATIONS_PATH>" `
-	--pages-parquet "<PAGES_PARQUET>" `
-	--output-dir "outputs" `
-	--methods traditional ours hierarchical attention kmeans random `
-	--device cuda
 ```
 
-Quick config sanity check (no heavy compute):
+Run a dry check (config/path sanity, no heavy compute):
 
 ```powershell
-$env:PYTHONPATH="src"
 python src/experiments/run_mmdocir_page.py `
 	--page-pkl-dir "<PAGE_PKL_DIR>" `
-	--colsmol-base "<COLSMOL_BASE>" `
-	--colsmol-lora "<COLSMOL_LORA>" `
-	--annotations-path "<ANNOTATIONS_PATH>" `
+	--colsmol-base "<BASE_MODEL_PATH_OR_ID>" `
+	--colsmol-lora "<LORA_PATH_OR_ID>" `
+	--annotations-path "<ANNOTATIONS_JSONL>" `
 	--pages-parquet "<PAGES_PARQUET>" `
 	--dry-run
 ```
 
-## Outputs
+## Run Main Experiments
 
-Per-method summary and domain-level CSVs are written to `--output-dir`, for example:
-- `traditional_summary.csv`
-- `traditional_domain.csv`
-- `ours_ablation_summary.csv`
-- `attention_pruning_summary.csv`
-- `spherical_kmeans_summary.csv`
-- `random_pruning_summary.csv`
+### MMDocIR Page
 
-## Run Baselines Individually (Other Method)
+```powershell
+python src/experiments/run_mmdocir_page.py `
+	--page-pkl-dir "<PAGE_PKL_DIR>" `
+	--colsmol-base "<BASE_MODEL_PATH_OR_ID>" `
+	--colsmol-lora "<LORA_PATH_OR_ID>" `
+	--annotations-path "<ANNOTATIONS_JSONL>" `
+	--pages-parquet "<PAGES_PARQUET>" `
+	--output-dir "outputs/page" `
+	--model-family colsmol `
+	--methods traditional ours hierarchical attention kmeans random `
+	--device cuda
+```
 
-You can run each baseline as an independent script from `src/other method`:
+Use ColQwen instead:
+
+```powershell
+python src/experiments/run_mmdocir_page.py `
+	--page-pkl-dir "<PAGE_PKL_DIR>" `
+	--colsmol-base "<BASE_MODEL_PATH_OR_ID>" `
+	--colsmol-lora "<LORA_PATH_OR_ID>" `
+	--annotations-path "<ANNOTATIONS_JSONL>" `
+	--pages-parquet "<PAGES_PARQUET>" `
+	--model-family colqwen
+```
+
+### MMDocIR Layout (Area-Aware Recall)
+
+```powershell
+python src/experiments/run_mmdocir_layout.py `
+	--layout-pkl-dir "<LAYOUT_PKL_DIR>" `
+	--colsmol-base "<BASE_MODEL_PATH_OR_ID>" `
+	--colsmol-lora "<LORA_PATH_OR_ID>" `
+	--annotations-path "<ANNOTATIONS_JSONL>" `
+	--layouts-parquet "<LAYOUTS_PARQUET>" `
+	--output-dir "outputs/layout" `
+	--layout-iou-threshold 0.5 `
+	--methods traditional ours hierarchical attention kmeans random
+```
+
+## Run Baselines Independently
+
+All scripts below are under src/other method.
 
 ```powershell
 $env:PYTHONPATH="src"
-python "src/other method/traditional_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<COLSMOL_BASE>" --colsmol-lora "<COLSMOL_LORA>" --annotations-path "<ANNOTATIONS_PATH>" --pages-parquet "<PAGES_PARQUET>"
-python "src/other method/hierarchical_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<COLSMOL_BASE>" --colsmol-lora "<COLSMOL_LORA>" --annotations-path "<ANNOTATIONS_PATH>" --pages-parquet "<PAGES_PARQUET>"
-python "src/other method/attention_pruning_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<COLSMOL_BASE>" --colsmol-lora "<COLSMOL_LORA>" --annotations-path "<ANNOTATIONS_PATH>" --pages-parquet "<PAGES_PARQUET>"
-python "src/other method/spherical_kmeans_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<COLSMOL_BASE>" --colsmol-lora "<COLSMOL_LORA>" --annotations-path "<ANNOTATIONS_PATH>" --pages-parquet "<PAGES_PARQUET>" --kmeans-iters 10
-python "src/other method/random_pruning_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<COLSMOL_BASE>" --colsmol-lora "<COLSMOL_LORA>" --annotations-path "<ANNOTATIONS_PATH>" --pages-parquet "<PAGES_PARQUET>" --n-random-seeds 1
+
+python "src/other method/traditional_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<BASE>" --colsmol-lora "<LORA>" --annotations-path "<ANN>" --pages-parquet "<PARQUET>"
+python "src/other method/hierarchical_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<BASE>" --colsmol-lora "<LORA>" --annotations-path "<ANN>" --pages-parquet "<PARQUET>"
+python "src/other method/attention_pruning_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<BASE>" --colsmol-lora "<LORA>" --annotations-path "<ANN>" --pages-parquet "<PARQUET>"
+python "src/other method/spherical_kmeans_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<BASE>" --colsmol-lora "<LORA>" --annotations-path "<ANN>" --pages-parquet "<PARQUET>" --kmeans-iters 10
+python "src/other method/random_pruning_method.py" --page-pkl-dir "<PAGE_PKL_DIR>" --colsmol-base "<BASE>" --colsmol-lora "<LORA>" --annotations-path "<ANN>" --pages-parquet "<PARQUET>" --n-random-seeds 1
 ```
 
-## Reproducibility Notes
+Document pooling baselines (1D/2D):
 
-- Query tokenization is aligned with the notebook: `"Query: {question}" + "<pad>" * 10`.
-- Evaluation uses set-based recall and nDCG with per-document page candidate pools.
-- The code is organized so each component (data/model/method/evaluation) can be independently unit-tested and benchmarked.
+```powershell
+python "src/other method/doc_pooling.py" `
+	--page-pkl-dir "<PAGE_PKL_DIR>" `
+	--colsmol-base "<BASE>" `
+	--colsmol-lora "<LORA>" `
+	--annotations-path "<ANN>" `
+	--pages-parquet "<PARQUET>" `
+	--pooling pool1d pool2d
+```
+
+## Output Artifacts
+
+Each run writes CSV summaries to --output-dir, for example:
+
+- traditional summary/domain breakdown
+- ours ablation summaries
+- attention/hierarchical/kmeans/random summaries
+- doc pooling summaries for pool1d and pool2d
+
+The exact file prefix depends on the script (for example, traditional, ours_ablation, doc_pooling).
+
+## Reproducibility Checklist
+
+- Use the same tokenizer/query prompt format as configured in code.
+- Keep data splits and annotation files fixed across methods.
+- Report both summary-level and domain-level metrics.
+- Run with deterministic seeds where applicable (for random pruning variants).
+
+## Notes
+
+- The folder name src/other method contains a space. Keep it quoted in shell commands.
+- If CUDA is not available, set --device cpu (runtime will be slower).
